@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="description" content="首都圏9路線151駅の1日平均乗降人員と5年伸び率を3Dで比較。投資用不動産向けの「駅の力」マップ。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="首都圏 駅力マップ｜乗降人員 × 5年伸び率">
+<meta property="og:description" content="山手・中央・常磐・TX・埼京・宇都宮・総武・京葉・東海道の151駅。高さ＝乗降人員、色＝2019→2024年度の伸び率。">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=&apos;http://www.w3.org/2000/svg&apos; viewBox=&apos;0 0 32 32&apos;%3E%3Crect width=&apos;32&apos; height=&apos;32&apos; fill=&apos;%230b1015&apos;/%3E%3Crect x=&apos;5&apos; y=&apos;18&apos; width=&apos;4&apos; height=&apos;9&apos; fill=&apos;%23c0394b&apos;/%3E%3Crect x=&apos;11&apos; y=&apos;8&apos; width=&apos;4&apos; height=&apos;19&apos; fill=&apos;%23e9b44c&apos;/%3E%3Crect x=&apos;17&apos; y=&apos;14&apos; width=&apos;4&apos; height=&apos;13&apos; fill=&apos;%236e7c8a&apos;/%3E%3Crect x=&apos;23&apos; y=&apos;11&apos; width=&apos;4&apos; height=&apos;16&apos; fill=&apos;%2317b8a6&apos;/%3E%3C/svg%3E">
+<title>首都圏 駅力マップ | 乗降人員 × 5年伸び率</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@500;700;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0b1015; --panel:#121a22; --panel-2:#0f161d; --line:#25333f;
+    --fg:#e6edf3; --fg-dim:#8b9dab; --fg-faint:#5d6f7d;
+    --gold:#e9b44c; --up:#17b8a6; --down:#c0394b; --flat:#6e7c8a;
+    --r:3px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--ink);color:var(--fg);
+    font-family:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN",sans-serif;
+    -webkit-font-smoothing:antialiased;overflow:hidden}
+  #map{position:fixed;inset:0}
+  .maplibregl-ctrl-attrib{font-size:10px;background:rgba(11,16,21,.7)!important}
+  .maplibregl-ctrl-attrib a{color:var(--fg-faint)!important}
+
+  .mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-feature-settings:"tnum"}
+
+  /* ---------- title ---------- */
+  #title{position:fixed;top:18px;left:20px;z-index:5;pointer-events:none;max-width:min(46vw,420px)}
+  #title h1{margin:0;font-size:clamp(19px,2.1vw,27px);font-weight:900;letter-spacing:.055em;line-height:1.15}
+  #title h1 em{font-style:normal;color:var(--gold)}
+  #title p{margin:7px 0 0;font-size:12px;line-height:1.65;color:var(--fg-dim);letter-spacing:.02em}
+  #title .src{margin-top:5px;font-size:10.5px;color:var(--fg-faint)}
+
+  /* ---------- legend ---------- */
+  #legend{position:fixed;left:20px;bottom:22px;z-index:5;font-size:11px;color:var(--fg-dim);
+    background:rgba(15,22,29,.86);border:1px solid var(--line);border-radius:var(--r);
+    padding:11px 13px;backdrop-filter:blur(8px);max-width:270px}
+  #legend .lab{font-size:10px;letter-spacing:.14em;color:var(--fg-faint);margin-bottom:6px}
+  #ramp{height:8px;border-radius:1px;margin-bottom:4px}
+  #rampTicks{display:flex;justify-content:space-between}
+  #legend .hbar{display:flex;align-items:flex-end;gap:7px;margin-top:12px;padding-top:11px;border-top:1px solid var(--line)}
+  #legend .hbar i{display:block;width:9px;background:linear-gradient(180deg,#4b6070,#1d2a34);border-top:2px solid var(--fg-dim)}
+
+  /* ---------- panel ---------- */
+  #panel{position:fixed;top:18px;right:18px;z-index:6;width:322px;max-height:calc(100vh - 36px);
+    display:flex;flex-direction:column;background:rgba(18,26,34,.9);border:1px solid var(--line);
+    border-radius:var(--r);backdrop-filter:blur(10px)}
+  #panel.min .pbody{display:none}
+  .phead{display:flex;align-items:center;justify-content:space-between;padding:10px 13px;
+    border-bottom:1px solid var(--line);flex:0 0 auto}
+  .phead b{font-size:11px;letter-spacing:.16em;font-weight:700;color:var(--fg-dim)}
+  .pbody{overflow-y:auto;overscroll-behavior:contain}
+  .sec{padding:13px;border-bottom:1px solid var(--line)}
+  .sec>.lab{font-size:10px;letter-spacing:.14em;color:var(--fg-faint);margin-bottom:9px}
+  .row{display:flex;gap:6px;align-items:center}
+
+  button,select{font-family:inherit;color:var(--fg);background:var(--panel-2);
+    border:1px solid var(--line);border-radius:2px;cursor:pointer;font-size:12px}
+  button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+  .seg{display:flex;width:100%}
+  .seg button{flex:1;padding:6px 0;letter-spacing:.04em}
+  .seg button+button{border-left:0}
+  .seg button[aria-pressed="true"]{background:#1d2a34;color:var(--fg);box-shadow:inset 0 -2px 0 var(--gold)}
+  select{width:100%;padding:6px 8px}
+  #toggle{padding:2px 8px;font-size:11px;letter-spacing:.08em}
+
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:16px;background:transparent}
+  input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--line)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;margin-top:-5px;
+    border-radius:50%;background:var(--gold);cursor:pointer}
+  input[type=range]::-moz-range-track{height:2px;background:var(--line)}
+  input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radius:50%;background:var(--gold)}
+
+  .chips{display:flex;flex-wrap:wrap;gap:5px}
+  .chip{display:flex;align-items:center;gap:5px;padding:4px 8px;font-size:11.5px;
+    border:1px solid var(--line);border-radius:2px;background:var(--panel-2);color:var(--fg-faint)}
+  .chip i{width:8px;height:8px;border-radius:50%;background:currentColor;flex:0 0 auto}
+  .chip[aria-pressed="true"]{color:var(--fg);border-color:#3a4b59;background:#1b2530}
+
+  /* ---------- ranking ---------- */
+  #rank{padding:0}
+  .rhead{display:flex;align-items:center;justify-content:space-between;padding:11px 13px 8px}
+  .rlist{list-style:none;margin:0;padding:0 6px 8px}
+  .rlist li{position:relative}
+  .rlist button{width:100%;display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:baseline;
+    padding:5px 7px;border:0;background:none;text-align:left;border-radius:2px}
+  .rlist button:hover{background:#1b2530}
+  .rlist button.on{background:#22303c;box-shadow:inset 2px 0 0 var(--gold)}
+  .rlist .no{font-size:10px;color:var(--fg-faint)}
+  .rlist .nm{font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rlist .nm small{color:var(--fg-faint);font-size:10px;margin-left:5px;font-weight:400}
+  .rlist .vl{font-size:11.5px}
+  .bar{height:2px;margin:0 7px 3px;background:var(--line)}
+  .bar span{display:block;height:2px}
+
+  /* ---------- detail ---------- */
+  #detail{position:fixed;left:50%;transform:translateX(-50%);bottom:22px;z-index:7;width:min(560px,calc(100vw - 40px));
+    background:rgba(18,26,34,.94);border:1px solid var(--line);border-radius:var(--r);
+    backdrop-filter:blur(10px);padding:14px 16px;display:none}
+  #detail.show{display:block}
+  #detail .dh{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  #detail h2{margin:0;font-size:19px;font-weight:900;letter-spacing:.04em}
+  #detail .pf{font-size:11px;color:var(--fg-dim)}
+  #detail .cl{margin-left:auto;display:flex;gap:5px}
+  #detail .cl span{font-size:10px;padding:2px 6px;border:1px solid currentColor;border-radius:2px}
+  #detail dl{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0 0}
+  #detail dt{font-size:9.5px;letter-spacing:.1em;color:var(--fg-faint)}
+  #detail dd{margin:3px 0 0;font-size:16px;font-weight:500}
+  #detail dd small{font-size:10px;color:var(--fg-dim);margin-left:2px;font-weight:400}
+  #detail .nt{margin:10px 0 0;font-size:10.5px;color:var(--fg-faint);line-height:1.6}
+  #close{position:absolute;top:8px;right:9px;border:0;background:none;color:var(--fg-faint);font-size:16px;line-height:1;padding:4px 6px}
+
+  .tip{font-family:"Zen Kaku Gothic New",sans-serif;font-size:12px;background:rgba(11,16,21,.95);
+    border:1px solid var(--line);border-radius:2px;padding:7px 10px;color:var(--fg);line-height:1.5}
+  .tip b{font-size:13px}
+  .tip .g{font-family:"IBM Plex Mono",monospace}
+
+  #note{padding:12px 13px;font-size:10.5px;line-height:1.75;color:var(--fg-faint)}
+  #note b{color:var(--fg-dim);font-weight:500}
+  #note ul{margin:6px 0 0;padding-left:1.1em}
+  #note li{margin-bottom:3px}
+
+  #loading{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:var(--ink);
+    font-size:12px;letter-spacing:.2em;color:var(--fg-faint)}
+
+  @media (max-width:820px){
+    #title{max-width:calc(100vw - 40px)}
+    #panel{top:auto;bottom:0;left:0;right:0;width:100%;max-height:58vh;border-radius:0;
+      border-left:0;border-right:0;border-bottom:0}
+    #legend{bottom:auto;top:112px;padding:9px 11px}
+    #detail{bottom:auto;top:112px;left:auto;right:14px;transform:none;width:min(320px,calc(100vw - 28px))}
+    #detail dl{grid-template-columns:repeat(2,1fr)}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div id="title">
+  <h1>首都圏 <em>駅力</em>マップ</h1>
+  <p>高さ＝1日平均乗降人員（推計）／色＝5年伸び率。投資用不動産の「駅の強さ」を立体で比較する。</p>
+  <div class="src mono">JR East FY2024 & FY2019 · MIR (TX) FY2024 & FY2019</div>
+</div>
+
+<div id="legend">
+  <div class="lab" id="legLab">色：5年伸び率（2019→2024年度）</div>
+  <div id="ramp"></div>
+  <div id="rampTicks" class="mono"><span>-25%</span><span>0%</span><span>+25%</span></div>
+  <div class="hbar mono" id="hbar"></div>
+</div>
+
+<section id="panel" aria-label="表示設定と駅ランキング">
+  <div class="phead">
+    <b>CONTROLS</b>
+    <button id="toggle" aria-expanded="true">閉じる</button>
+  </div>
+  <div class="pbody">
+    <div class="sec">
+      <div class="lab">色の指標</div>
+      <select id="colorMode" aria-label="色の指標">
+        <option value="growth">5年伸び率（絶対）</option>
+        <option value="rel">5年伸び率（表示駅の平均比）</option>
+        <option value="line">路線カラー</option>
+      </select>
+    </div>
+    <div class="sec">
+      <div class="lab">高さの取り方</div>
+      <div class="seg" role="group" aria-label="高さの取り方">
+        <button data-scale="linear" aria-pressed="true">線形</button>
+        <button data-scale="sqrt" aria-pressed="false">平方根</button>
+      </div>
+      <div class="row" style="margin-top:11px">
+        <input id="hmul" type="range" min="0.3" max="3" step="0.1" value="1" aria-label="高さ倍率">
+        <span class="mono" id="hmulV" style="font-size:11px;width:30px;text-align:right">1.0</span>
+      </div>
+      <div class="row" style="margin-top:2px">
+        <input id="labN" type="range" min="0" max="60" step="5" value="25" aria-label="駅名ラベル表示数">
+        <span class="mono" id="labNV" style="font-size:11px;width:30px;text-align:right">25</span>
+      </div>
+      <div style="font-size:10px;color:var(--fg-faint);margin-top:3px">倍率 / 駅名ラベル数</div>
+    </div>
+    <div class="sec">
+      <div class="lab">路線</div>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div class="sec" id="rank">
+      <div class="rhead" style="padding:0 0 9px">
+        <div class="lab" style="margin:0">ランキング</div>
+        <select id="sortBy" style="width:auto;padding:3px 6px;font-size:11px" aria-label="並び順">
+          <option value="p24">乗降人員</option>
+          <option value="g">伸び率</option>
+          <option value="gAsc">伸び率（低い順）</option>
+        </select>
+      </div>
+      <ol class="rlist" id="rlist"></ol>
+    </div>
+    <div id="note">
+      <b>データの読み方</b>
+      <ul>
+        <li>JR東日本は「乗車人員」しか公表しないため、<b>乗車人員×2</b>を乗降人員の推計値として全社共通の物差しにしている。</li>
+        <li>集計対象はJR東日本とつくばエクスプレスのみ。<b>東京メトロ・私鉄分は含まない</b>ので、北千住・柏・船橋・大宮・新宿などは実際よりかなり低く出る。</li>
+        <li>乗換駅は他線からの乗り継ぎを含むため、周辺人口以上に大きく出る。</li>
+        <li>伸び率は2019年度（コロナ前）比。定期利用が戻りきらず、都心のオフィス街はマイナス、郊外の住宅地はプラスに振れやすい。</li>
+        <li>幕張豊砂・高輪ゲートウェイは2019年度実績がないため灰色（比較不可）。</li>
+        <li>TXの2019年度は月別速報値（100人単位）の年度平均。</li>
+      </ul>
+      <button id="csv" style="margin-top:10px;padding:5px 9px;font-size:11px">CSVを書き出す</button>
+    </div>
+  </div>
+</section>
+
+<div id="detail" role="dialog" aria-live="polite">
+  <button id="close" aria-label="閉じる">×</button>
+  <div class="dh"><h2 id="dName"></h2><span class="pf" id="dPref"></span><span class="cl" id="dLines"></span></div>
+  <dl>
+    <div><dt>乗降人員/日</dt><dd class="mono" id="dP"></dd></div>
+    <div><dt>乗車人員/日</dt><dd class="mono" id="dB"></dd></div>
+    <div><dt>5年伸び率</dt><dd class="mono" id="dG"></dd></div>
+    <div><dt>乗降人員 順位</dt><dd class="mono" id="dR"></dd></div>
+  </dl>
+  <p class="nt" id="dNote"></p>
+</div>
+
+<div id="loading">READING STATION DATA…</div>
+
+<script id="payload" type="application/json">{"meta": {"fy": "2024年度", "base_fy": "2019年度", "note": "高さ=1日平均乗降人員（JR東日本・TXの乗車人員×2）。他社線の利用は含まない。"}, "lines": [{"id": "yamanote", "name": "山手線", "short": "山手", "color": "#A8C93B", "paths": [["東京", "神田", "秋葉原", "御徒町", "上野", "鶯谷", "日暮里", "西日暮里", "田端", "駒込", "巣鴨", "大塚", "池袋", "目白", "高田馬場", "新大久保", "新宿", "代々木", "原宿", "渋谷", "恵比寿", "目黒", "五反田", "大崎", "品川", "高輪ゲートウェイ", "田町", "浜松町", "新橋", "有楽町", "東京"]]}, {"id": "chuo", "name": "中央線（新宿以西）", "short": "中央", "color": "#F0562B", "paths": [["新宿", "大久保", "東中野", "中野", "高円寺", "阿佐ケ谷", "荻窪", "西荻窪", "吉祥寺", "三鷹", "武蔵境", "東小金井", "武蔵小金井", "国分寺", "西国分寺", "国立", "立川", "日野", "豊田", "八王子", "西八王子", "高尾"]]}, {"id": "joban", "name": "常磐線", "short": "常磐", "color": "#3DBE6E", "paths": [["上野", "日暮里", "三河島", "南千住", "北千住", "綾瀬", "亀有", "金町", "松戸", "北松戸", "馬橋", "新松戸", "北小金", "南柏", "柏", "北柏", "我孫子", "天王台", "取手"]]}, {"id": "tx", "name": "つくばエクスプレス", "short": "TX", "color": "#1E7FD6", "paths": [["秋葉原", "新御徒町", "浅草", "南千住", "北千住", "青井", "六町", "八潮", "三郷中央", "南流山", "流山セントラルパーク", "流山おおたかの森", "柏の葉キャンパス", "柏たなか", "守谷", "みらい平", "みどりの", "万博記念公園", "研究学園", "つくば"]]}, {"id": "saikyo", "name": "埼京線", "short": "埼京", "color": "#00A7A7", "paths": [["大崎", "恵比寿", "渋谷", "新宿", "池袋", "板橋", "十条", "赤羽", "北赤羽", "浮間舟渡", "戸田公園", "戸田", "北戸田", "武蔵浦和", "中浦和", "南与野", "与野本町", "北与野", "大宮"]]}, {"id": "utsunomiya", "name": "宇都宮線", "short": "宇都宮", "color": "#F2A93B", "paths": [["上野", "尾久", "赤羽", "浦和", "さいたま新都心", "大宮", "土呂", "東大宮", "蓮田", "白岡", "新白岡", "久喜"]]}, {"id": "sobu", "name": "総武線", "short": "総武", "color": "#F6D93C", "paths": [["秋葉原", "浅草橋", "両国", "錦糸町", "亀戸", "平井", "新小岩", "小岩", "市川", "本八幡", "下総中山", "西船橋", "船橋", "東船橋", "津田沼", "幕張本郷", "幕張", "新検見川", "稲毛", "西千葉", "千葉"], ["東京", "新日本橋", "馬喰町", "錦糸町"]]}, {"id": "keiyo", "name": "京葉線", "short": "京葉", "color": "#D3392F", "paths": [["東京", "八丁堀", "越中島", "潮見", "新木場", "葛西臨海公園", "舞浜", "新浦安", "市川塩浜", "二俣新町", "南船橋", "新習志野", "幕張豊砂", "海浜幕張", "検見川浜", "稲毛海岸", "千葉みなと", "蘇我"]]}, {"id": "tokaido", "name": "東海道線", "short": "東海道", "color": "#E0834A", "paths": [["東京", "新橋", "品川", "川崎", "横浜", "戸塚", "大船"]]}], "stations": [{"n": "新宿", "pref": "東京都", "la": 35.689729, "lo": 139.700464, "lines": ["yamanote", "chuo", "saikyo"], "jr24": 666809, "jr19": 775386, "tx24": null, "tx19": null, "b24": 666809, "b19": 775386, "p24": 1333618, "g": -14.0}, {"n": "池袋", "pref": "東京都", "la": 35.730256, "lo": 139.711086, "lines": ["yamanote", "saikyo"], "jr24": 499128, "jr19": 558623, "tx24": null, "tx19": null, "b24": 499128, "b19": 558623, "p24": 998256, "g": -10.7}, {"n": "東京", "pref": "東京都", "la": 35.681391, "lo": 139.766103, "lines": ["yamanote", "sobu", "keiyo", "tokaido"], "jr24": 434564, "jr19": 462589, "tx24": null, "tx19": null, "b24": 434564, "b19": 462589, "p24": 869128, "g": -6.1}, {"n": "横浜", "pref": "神奈川県", "la": 35.466195, "lo": 139.622704, "lines": ["tokaido"], "jr24": 373010, "jr19": 419440, "tx24": null, "tx19": null, "b24": 373010, "b19": 419440, "p24": 746020, "g": -11.1}, {"n": "渋谷", "pref": "東京都", "la": 35.658871, "lo": 139.701238, "lines": ["yamanote", "saikyo"], "jr24": 324414, "jr19": 366128, "tx24": null, "tx19": null, "b24": 324414, "b19": 366128, "p24": 648828, "g": -11.4}, {"n": "品川", "pref": "東京都", "la": 35.62876, "lo": 139.738999, "lines": ["yamanote", "tokaido"], "jr24": 287939, "jr19": 377337, "tx24": null, "tx19": null, "b24": 287939, "b19": 377337, "p24": 575878, "g": -23.7}, {"n": "秋葉原", "pref": "東京都", "la": 35.698619, "lo": 139.773288, "lines": ["yamanote", "tx", "sobu"], "jr24": 221421, "jr19": 248033, "tx24": 62597, "tx19": 68950, "b24": 284018, "b19": 316983, "p24": 568036, "g": -10.4}, {"n": "大宮", "pref": "埼玉県", "la": 35.906439, "lo": 139.62405, "lines": ["saikyo", "utsunomiya"], "jr24": 254220, "jr19": 257344, "tx24": null, "tx19": null, "b24": 254220, "b19": 257344, "p24": 508440, "g": -1.2}, {"n": "北千住", "pref": "東京都", "la": 35.749677, "lo": 139.804872, "lines": ["joban", "tx"], "jr24": 198732, "jr19": 221634, "tx24": 53202, "tx19": 51542, "b24": 251934, "b19": 273176, "p24": 503868, "g": -7.8}, {"n": "新橋", "pref": "東京都", "la": 35.666195, "lo": 139.758587, "lines": ["yamanote", "tokaido"], "jr24": 231628, "jr19": 278334, "tx24": null, "tx19": null, "b24": 231628, "b19": 278334, "p24": 463256, "g": -16.8}, {"n": "川崎", "pref": "神奈川県", "la": 35.531311, "lo": 139.697485, "lines": ["tokaido"], "jr24": 194391, "jr19": 215234, "tx24": null, "tx19": null, "b24": 194391, "b19": 215234, "p24": 388782, "g": -9.7}, {"n": "高田馬場", "pref": "東京都", "la": 35.712677, "lo": 139.703715, "lines": ["yamanote"], "jr24": 179666, "jr19": 208024, "tx24": null, "tx19": null, "b24": 179666, "b19": 208024, "p24": 359332, "g": -13.6}, {"n": "上野", "pref": "東京都", "la": 35.71379, "lo": 139.777043, "lines": ["yamanote", "joban", "utsunomiya"], "jr24": 170042, "jr19": 182704, "tx24": null, "tx19": null, "b24": 170042, "b19": 182704, "p24": 340084, "g": -6.9}, {"n": "立川", "pref": "東京都", "la": 35.698202, "lo": 139.413704, "lines": ["chuo"], "jr24": 154091, "jr19": 166636, "tx24": null, "tx19": null, "b24": 154091, "b19": 166636, "p24": 308182, "g": -7.5}, {"n": "大崎", "pref": "東京都", "la": 35.619772, "lo": 139.728439, "lines": ["yamanote", "saikyo"], "jr24": 145194, "jr19": 177095, "tx24": null, "tx19": null, "b24": 145194, "b19": 177095, "p24": 290388, "g": -18.0}, {"n": "浜松町", "pref": "東京都", "la": 35.655391, "lo": 139.757135, "lines": ["yamanote"], "jr24": 133902, "jr19": 163644, "tx24": null, "tx19": null, "b24": 133902, "b19": 163644, "p24": 267804, "g": -18.2}, {"n": "中野", "pref": "東京都", "la": 35.705765, "lo": 139.665835, "lines": ["chuo"], "jr24": 132316, "jr19": 150907, "tx24": null, "tx19": null, "b24": 132316, "b19": 150907, "p24": 264632, "g": -12.3}, {"n": "西船橋", "pref": "千葉県", "la": 35.707283, "lo": 139.959536, "lines": ["sobu"], "jr24": 129904, "jr19": 138618, "tx24": null, "tx19": null, "b24": 129904, "b19": 138618, "p24": 259808, "g": -6.3}, {"n": "船橋", "pref": "千葉県", "la": 35.701865, "lo": 139.984707, "lines": ["sobu"], "jr24": 129427, "jr19": 137842, "tx24": null, "tx19": null, "b24": 129427, "b19": 137842, "p24": 258854, "g": -6.1}, {"n": "吉祥寺", "pref": "東京都", "la": 35.703119, "lo": 139.579765, "lines": ["chuo"], "jr24": 128246, "jr19": 141849, "tx24": null, "tx19": null, "b24": 128246, "b19": 141849, "p24": 256492, "g": -9.6}, {"n": "有楽町", "pref": "東京都", "la": 35.675441, "lo": 139.763806, "lines": ["yamanote"], "jr24": 126872, "jr19": 167748, "tx24": null, "tx19": null, "b24": 126872, "b19": 167748, "p24": 253744, "g": -24.4}, {"n": "恵比寿", "pref": "東京都", "la": 35.646685, "lo": 139.71007, "lines": ["yamanote", "saikyo"], "jr24": 126010, "jr19": 145805, "tx24": null, "tx19": null, "b24": 126010, "b19": 145805, "p24": 252020, "g": -13.6}, {"n": "田町", "pref": "東京都", "la": 35.645736, "lo": 139.747575, "lines": ["yamanote"], "jr24": 125855, "jr19": 158839, "tx24": null, "tx19": null, "b24": 125855, "b19": 158839, "p24": 251710, "g": -20.8}, {"n": "柏", "pref": "千葉県", "la": 35.862316, "lo": 139.971148, "lines": ["joban"], "jr24": 117042, "jr19": 125490, "tx24": null, "tx19": null, "b24": 117042, "b19": 125490, "p24": 234084, "g": -6.7}, {"n": "五反田", "pref": "東京都", "la": 35.625974, "lo": 139.723822, "lines": ["yamanote"], "jr24": 110321, "jr19": 140265, "tx24": null, "tx19": null, "b24": 110321, "b19": 140265, "p24": 220642, "g": -21.3}, {"n": "日暮里", "pref": "東京都", "la": 35.727908, "lo": 139.771287, "lines": ["yamanote", "joban"], "jr24": 107077, "jr19": 114420, "tx24": null, "tx19": null, "b24": 107077, "b19": 114420, "p24": 214154, "g": -6.4}, {"n": "千葉", "pref": "千葉県", "la": 35.612926, "lo": 140.113478, "lines": ["sobu"], "jr24": 104225, "jr19": 107829, "tx24": null, "tx19": null, "b24": 104225, "b19": 107829, "p24": 208450, "g": -3.3}, {"n": "国分寺", "pref": "東京都", "la": 35.700123, "lo": 139.480841, "lines": ["chuo"], "jr24": 101156, "jr19": 112090, "tx24": null, "tx19": null, "b24": 101156, "b19": 112090, "p24": 202312, "g": -9.8}, {"n": "戸塚", "pref": "神奈川県", "la": 35.400432, "lo": 139.534282, "lines": ["tokaido"], "jr24": 100202, "jr19": 112598, "tx24": null, "tx19": null, "b24": 100202, "b19": 112598, "p24": 200404, "g": -11.0}, {"n": "錦糸町", "pref": "東京都", "la": 35.696802, "lo": 139.814136, "lines": ["sobu"], "jr24": 97049, "jr19": 105681, "tx24": null, "tx19": null, "b24": 97049, "b19": 105681, "p24": 194098, "g": -8.2}, {"n": "赤羽", "pref": "東京都", "la": 35.778026, "lo": 139.720928, "lines": ["saikyo", "utsunomiya"], "jr24": 94167, "jr19": 98370, "tx24": null, "tx19": null, "b24": 94167, "b19": 98370, "p24": 188334, "g": -4.3}, {"n": "目黒", "pref": "東京都", "la": 35.633923, "lo": 139.715775, "lines": ["yamanote"], "jr24": 93384, "jr19": 113496, "tx24": null, "tx19": null, "b24": 93384, "b19": 113496, "p24": 186768, "g": -17.7}, {"n": "大船", "pref": "神奈川県", "la": 35.353466, "lo": 139.531127, "lines": ["tokaido"], "jr24": 91259, "jr19": 98926, "tx24": null, "tx19": null, "b24": 91259, "b19": 98926, "p24": 182518, "g": -7.8}, {"n": "浦和", "pref": "埼玉県", "la": 35.858496, "lo": 139.657109, "lines": ["utsunomiya"], "jr24": 90939, "jr19": 95865, "tx24": null, "tx19": null, "b24": 90939, "b19": 95865, "p24": 181878, "g": -5.1}, {"n": "神田", "pref": "東京都", "la": 35.691173, "lo": 139.770641, "lines": ["yamanote"], "jr24": 90528, "jr19": 106658, "tx24": null, "tx19": null, "b24": 90528, "b19": 106658, "p24": 181056, "g": -15.1}, {"n": "松戸", "pref": "千葉県", "la": 35.784472, "lo": 139.900779, "lines": ["joban"], "jr24": 89679, "jr19": 100062, "tx24": null, "tx19": null, "b24": 89679, "b19": 100062, "p24": 179358, "g": -10.4}, {"n": "西日暮里", "pref": "東京都", "la": 35.731954, "lo": 139.766857, "lines": ["yamanote"], "jr24": 89606, "jr19": 99696, "tx24": null, "tx19": null, "b24": 89606, "b19": 99696, "p24": 179212, "g": -10.1}, {"n": "津田沼", "pref": "千葉県", "la": 35.691367, "lo": 140.020179, "lines": ["sobu"], "jr24": 89445, "jr19": 102846, "tx24": null, "tx19": null, "b24": 89445, "b19": 102846, "p24": 178890, "g": -13.0}, {"n": "三鷹", "pref": "東京都", "la": 35.702683, "lo": 139.560325, "lines": ["chuo"], "jr24": 86843, "jr19": 98796, "tx24": null, "tx19": null, "b24": 86843, "b19": 98796, "p24": 173686, "g": -12.1}, {"n": "荻窪", "pref": "東京都", "la": 35.704523, "lo": 139.620109, "lines": ["chuo"], "jr24": 82079, "jr19": 90814, "tx24": null, "tx19": null, "b24": 82079, "b19": 90814, "p24": 164158, "g": -9.6}, {"n": "舞浜", "pref": "千葉県", "la": 35.636115, "lo": 139.883714, "lines": ["keiyo"], "jr24": 79403, "jr19": 78811, "tx24": null, "tx19": null, "b24": 79403, "b19": 78811, "p24": 158806, "g": 0.8}, {"n": "八王子", "pref": "東京都", "la": 35.655555, "lo": 139.338998, "lines": ["chuo"], "jr24": 77401, "jr19": 83565, "tx24": null, "tx19": null, "b24": 77401, "b19": 83565, "p24": 154802, "g": -7.4}, {"n": "南流山", "pref": "千葉県", "la": 35.838035, "lo": 139.903865, "lines": ["tx"], "jr24": 37192, "jr19": 35517, "tx24": 39037, "tx19": 37558, "b24": 76229, "b19": 73075, "p24": 152458, "g": 4.3}, {"n": "新小岩", "pref": "東京都", "la": 35.716903, "lo": 139.857777, "lines": ["sobu"], "jr24": 73388, "jr19": 77006, "tx24": null, "tx19": null, "b24": 73388, "b19": 77006, "p24": 146776, "g": -4.7}, {"n": "新木場", "pref": "東京都", "la": 35.646172, "lo": 139.827402, "lines": ["keiyo"], "jr24": 70078, "jr19": 78928, "tx24": null, "tx19": null, "b24": 70078, "b19": 78928, "p24": 140156, "g": -11.2}, {"n": "原宿", "pref": "東京都", "la": 35.670646, "lo": 139.702592, "lines": ["yamanote"], "jr24": 67407, "jr19": 72579, "tx24": null, "tx19": null, "b24": 67407, "b19": 72579, "p24": 134814, "g": -7.1}, {"n": "巣鴨", "pref": "東京都", "la": 35.733445, "lo": 139.739303, "lines": ["yamanote"], "jr24": 67160, "jr19": 76212, "tx24": null, "tx19": null, "b24": 67160, "b19": 76212, "p24": 134320, "g": -11.9}, {"n": "武蔵境", "pref": "東京都", "la": 35.702083, "lo": 139.543402, "lines": ["chuo"], "jr24": 63468, "jr19": 68907, "tx24": null, "tx19": null, "b24": 63468, "b19": 68907, "p24": 126936, "g": -7.9}, {"n": "御徒町", "pref": "東京都", "la": 35.707282, "lo": 139.774727, "lines": ["yamanote"], "jr24": 62984, "jr19": 69666, "tx24": null, "tx19": null, "b24": 62984, "b19": 69666, "p24": 125968, "g": -9.6}, {"n": "小岩", "pref": "東京都", "la": 35.733207, "lo": 139.881755, "lines": ["sobu"], "jr24": 60083, "jr19": 66125, "tx24": null, "tx19": null, "b24": 60083, "b19": 66125, "p24": 120166, "g": -9.1}, {"n": "海浜幕張", "pref": "千葉県", "la": 35.648373, "lo": 140.041917, "lines": ["keiyo"], "jr24": 56995, "jr19": 68111, "tx24": null, "tx19": null, "b24": 56995, "b19": 68111, "p24": 113990, "g": -16.3}, {"n": "武蔵小金井", "pref": "東京都", "la": 35.701337, "lo": 139.506483, "lines": ["chuo"], "jr24": 56713, "jr19": 62565, "tx24": null, "tx19": null, "b24": 56713, "b19": 62565, "p24": 113426, "g": -9.4}, {"n": "代々木", "pref": "東京都", "la": 35.683061, "lo": 139.702042, "lines": ["yamanote"], "jr24": 56582, "jr19": 69653, "tx24": null, "tx19": null, "b24": 56582, "b19": 69653, "p24": 113164, "g": -18.8}, {"n": "市川", "pref": "千葉県", "la": 35.728903, "lo": 139.908142, "lines": ["sobu"], "jr24": 56421, "jr19": 61575, "tx24": null, "tx19": null, "b24": 56421, "b19": 61575, "p24": 112842, "g": -8.4}, {"n": "本八幡", "pref": "千葉県", "la": 35.720898, "lo": 139.92741, "lines": ["sobu"], "jr24": 55139, "jr19": 60161, "tx24": null, "tx19": null, "b24": 55139, "b19": 60161, "p24": 110278, "g": -8.3}, {"n": "亀戸", "pref": "東京都", "la": 35.697345, "lo": 139.826262, "lines": ["sobu"], "jr24": 55043, "jr19": 57643, "tx24": null, "tx19": null, "b24": 55043, "b19": 57643, "p24": 110086, "g": -4.5}, {"n": "大塚", "pref": "東京都", "la": 35.731412, "lo": 139.728584, "lines": ["yamanote"], "jr24": 54351, "jr19": 58882, "tx24": null, "tx19": null, "b24": 54351, "b19": 58882, "p24": 108702, "g": -7.7}, {"n": "さいたま新都心", "pref": "埼玉県", "la": 35.893867, "lo": 139.633587, "lines": ["utsunomiya"], "jr24": 53720, "jr19": 55782, "tx24": null, "tx19": null, "b24": 53720, "b19": 55782, "p24": 107440, "g": -3.7}, {"n": "新浦安", "pref": "千葉県", "la": 35.649526, "lo": 139.912553, "lines": ["keiyo"], "jr24": 51604, "jr19": 57160, "tx24": null, "tx19": null, "b24": 51604, "b19": 57160, "p24": 103208, "g": -9.7}, {"n": "武蔵浦和", "pref": "埼玉県", "la": 35.846047, "lo": 139.647974, "lines": ["saikyo"], "jr24": 50372, "jr19": 53992, "tx24": null, "tx19": null, "b24": 50372, "b19": 53992, "p24": 100744, "g": -6.7}, {"n": "浅草橋", "pref": "東京都", "la": 35.697403, "lo": 139.784427, "lines": ["sobu"], "jr24": 49943, "jr19": 53911, "tx24": null, "tx19": null, "b24": 49943, "b19": 53911, "p24": 99886, "g": -7.4}, {"n": "金町", "pref": "東京都", "la": 35.769582, "lo": 139.870482, "lines": ["joban"], "jr24": 49698, "jr19": 51572, "tx24": null, "tx19": null, "b24": 49698, "b19": 51572, "p24": 99396, "g": -3.6}, {"n": "新大久保", "pref": "東京都", "la": 35.700875, "lo": 139.700261, "lines": ["yamanote"], "jr24": 49246, "jr19": 49438, "tx24": null, "tx19": null, "b24": 49246, "b19": 49438, "p24": 98492, "g": -0.4}, {"n": "国立", "pref": "東京都", "la": 35.69923, "lo": 139.44634, "lines": ["chuo"], "jr24": 48548, "jr19": 53532, "tx24": null, "tx19": null, "b24": 48548, "b19": 53532, "p24": 97096, "g": -9.3}, {"n": "高円寺", "pref": "東京都", "la": 35.705326, "lo": 139.649664, "lines": ["chuo"], "jr24": 47716, "jr19": 51647, "tx24": null, "tx19": null, "b24": 47716, "b19": 51647, "p24": 95432, "g": -7.6}, {"n": "稲毛", "pref": "千葉県", "la": 35.637264, "lo": 140.09256, "lines": ["sobu"], "jr24": 46295, "jr19": 49966, "tx24": null, "tx19": null, "b24": 46295, "b19": 49966, "p24": 92590, "g": -7.3}, {"n": "駒込", "pref": "東京都", "la": 35.736825, "lo": 139.748053, "lines": ["yamanote"], "jr24": 43540, "jr19": 48861, "tx24": null, "tx19": null, "b24": 43540, "b19": 48861, "p24": 87080, "g": -10.9}, {"n": "流山おおたかの森", "pref": "千葉県", "la": 35.872051, "lo": 139.925898, "lines": ["tx"], "jr24": null, "jr19": null, "tx24": 42714, "tx19": 39692, "b24": 42714, "b19": 39692, "p24": 85428, "g": 7.6}, {"n": "西荻窪", "pref": "東京都", "la": 35.703842, "lo": 139.599361, "lines": ["chuo"], "jr24": 42670, "jr19": 45712, "tx24": null, "tx19": null, "b24": 42670, "b19": 45712, "p24": 85340, "g": -6.7}, {"n": "阿佐ケ谷", "pref": "東京都", "la": 35.704818, "lo": 139.635868, "lines": ["chuo"], "jr24": 42024, "jr19": 45603, "tx24": null, "tx19": null, "b24": 42024, "b19": 45603, "p24": 84048, "g": -7.8}, {"n": "田端", "pref": "東京都", "la": 35.737781, "lo": 139.761229, "lines": ["yamanote"], "jr24": 40479, "jr19": 47008, "tx24": null, "tx19": null, "b24": 40479, "b19": 47008, "p24": 80958, "g": -13.9}, {"n": "亀有", "pref": "東京都", "la": 35.766527, "lo": 139.847573, "lines": ["joban"], "jr24": 39909, "jr19": 42901, "tx24": null, "tx19": null, "b24": 39909, "b19": 42901, "p24": 79818, "g": -7.0}, {"n": "東中野", "pref": "東京都", "la": 35.706529, "lo": 139.684436, "lines": ["chuo"], "jr24": 36956, "jr19": 41200, "tx24": null, "tx19": null, "b24": 36956, "b19": 41200, "p24": 73912, "g": -10.3}, {"n": "新松戸", "pref": "千葉県", "la": 35.825467, "lo": 139.921076, "lines": ["joban"], "jr24": 36169, "jr19": 39140, "tx24": null, "tx19": null, "b24": 36169, "b19": 39140, "p24": 72338, "g": -7.6}, {"n": "両国", "pref": "東京都", "la": 35.69579, "lo": 139.793334, "lines": ["sobu"], "jr24": 36048, "jr19": 39148, "tx24": null, "tx19": null, "b24": 36048, "b19": 39148, "p24": 72096, "g": -7.9}, {"n": "十条", "pref": "東京都", "la": 35.760321, "lo": 139.722233, "lines": ["saikyo"], "jr24": 33753, "jr19": 36429, "tx24": null, "tx19": null, "b24": 33753, "b19": 36429, "p24": 67506, "g": -7.3}, {"n": "目白", "pref": "東京都", "la": 35.720476, "lo": 139.706228, "lines": ["yamanote"], "jr24": 33541, "jr19": 37536, "tx24": null, "tx19": null, "b24": 33541, "b19": 37536, "p24": 67082, "g": -10.6}, {"n": "戸田公園", "pref": "埼玉県", "la": 35.807906, "lo": 139.678203, "lines": ["saikyo"], "jr24": 32965, "jr19": 34478, "tx24": null, "tx19": null, "b24": 32965, "b19": 34478, "p24": 65930, "g": -4.4}, {"n": "蘇我", "pref": "千葉県", "la": 35.582065, "lo": 140.130767, "lines": ["keiyo"], "jr24": 32705, "jr19": 34189, "tx24": null, "tx19": null, "b24": 32705, "b19": 34189, "p24": 65410, "g": -4.3}, {"n": "板橋", "pref": "東京都", "la": 35.745435, "lo": 139.719507, "lines": ["saikyo"], "jr24": 32632, "jr19": 33710, "tx24": null, "tx19": null, "b24": 32632, "b19": 33710, "p24": 65264, "g": -3.2}, {"n": "久喜", "pref": "埼玉県", "la": 36.065684, "lo": 139.67727, "lines": ["utsunomiya"], "jr24": 32472, "jr19": 35347, "tx24": null, "tx19": null, "b24": 32472, "b19": 35347, "p24": 64944, "g": -8.1}, {"n": "東大宮", "pref": "埼玉県", "la": 35.948751, "lo": 139.640291, "lines": ["utsunomiya"], "jr24": 32237, "jr19": 33531, "tx24": null, "tx19": null, "b24": 32237, "b19": 33531, "p24": 64474, "g": -3.9}, {"n": "豊田", "pref": "東京都", "la": 35.659502, "lo": 139.381495, "lines": ["chuo"], "jr24": 32220, "jr19": 35718, "tx24": null, "tx19": null, "b24": 32220, "b19": 35718, "p24": 64440, "g": -9.8}, {"n": "八丁堀", "pref": "東京都", "la": 35.674617, "lo": 139.777705, "lines": ["keiyo"], "jr24": 32216, "jr19": 35957, "tx24": null, "tx19": null, "b24": 32216, "b19": 35957, "p24": 64432, "g": -10.4}, {"n": "平井", "pref": "東京都", "la": 35.70643, "lo": 139.842181, "lines": ["sobu"], "jr24": 31063, "jr19": 33436, "tx24": null, "tx19": null, "b24": 31063, "b19": 33436, "p24": 62126, "g": -7.1}, {"n": "南柏", "pref": "千葉県", "la": 35.844655, "lo": 139.954111, "lines": ["joban"], "jr24": 30526, "jr19": 32930, "tx24": null, "tx19": null, "b24": 30526, "b19": 32930, "p24": 61052, "g": -7.3}, {"n": "西八王子", "pref": "東京都", "la": 35.656621, "lo": 139.31264, "lines": ["chuo"], "jr24": 30136, "jr19": 31823, "tx24": null, "tx19": null, "b24": 30136, "b19": 31823, "p24": 60272, "g": -5.3}, {"n": "東小金井", "pref": "東京都", "la": 35.701643, "lo": 139.524837, "lines": ["chuo"], "jr24": 29649, "jr19": 31758, "tx24": null, "tx19": null, "b24": 29649, "b19": 31758, "p24": 59298, "g": -6.6}, {"n": "我孫子", "pref": "千葉県", "la": 35.87279, "lo": 140.010466, "lines": ["joban"], "jr24": 28756, "jr19": 31590, "tx24": null, "tx19": null, "b24": 28756, "b19": 31590, "p24": 57512, "g": -9.0}, {"n": "西国分寺", "pref": "東京都", "la": 35.699744, "lo": 139.465994, "lines": ["chuo"], "jr24": 27864, "jr19": 29577, "tx24": null, "tx19": null, "b24": 27864, "b19": 29577, "p24": 55728, "g": -5.8}, {"n": "幕張本郷", "pref": "千葉県", "la": 35.672664, "lo": 140.042241, "lines": ["sobu"], "jr24": 26009, "jr19": 29556, "tx24": null, "tx19": null, "b24": 26009, "b19": 29556, "p24": 52018, "g": -12.0}, {"n": "大久保", "pref": "東京都", "la": 35.700784, "lo": 139.69732, "lines": ["chuo"], "jr24": 25772, "jr19": 27678, "tx24": null, "tx19": null, "b24": 25772, "b19": 27678, "p24": 51544, "g": -6.9}, {"n": "高尾", "pref": "東京都", "la": 35.642026, "lo": 139.282288, "lines": ["chuo"], "jr24": 25542, "jr19": 28214, "tx24": null, "tx19": null, "b24": 25542, "b19": 28214, "p24": 51084, "g": -9.5}, {"n": "馬喰町", "pref": "東京都", "la": 35.693365, "lo": 139.78238, "lines": ["sobu"], "jr24": 25207, "jr19": 26183, "tx24": null, "tx19": null, "b24": 25207, "b19": 26183, "p24": 50414, "g": -3.7}, {"n": "八潮", "pref": "埼玉県", "la": 35.807905, "lo": 139.845017, "lines": ["tx"], "jr24": null, "jr19": null, "tx24": 25152, "tx19": 24825, "b24": 25152, "b19": 24825, "p24": 50304, "g": 1.3}, {"n": "鶯谷", "pref": "東京都", "la": 35.721484, "lo": 139.778015, "lines": ["yamanote"], "jr24": 24460, "jr19": 25707, "tx24": null, "tx19": null, "b24": 24460, "b19": 25707, "p24": 48920, "g": -4.9}, {"n": "守谷", "pref": "茨城県", "la": 35.950626, "lo": 139.992209, "lines": ["tx"], "jr24": null, "jr19": null, "tx24": 24331, "tx19": 25567, "b24": 24331, "b19": 25567, "p24": 48662, "g": -4.8}, {"n": "取手", "pref": "茨城県", "la": 35.89553, "lo": 140.063004, "lines": ["joban"], "jr24": 23875, "jr19": 27277, "tx24": null, "tx19": null, "b24": 23875, "b19": 27277, "p24": 47750, "g": -12.5}, {"n": "南船橋", "pref": "千葉県", "la": 35.681804, "lo": 139.995773, "lines": ["keiyo"], "jr24": 23798, "jr19": 22763, "tx24": null, "tx19": null, "b24": 23798, "b19": 22763, "p24": 47596, "g": 4.5}, {"n": "南千住", "pref": "東京都", "la": 35.734033, "lo": 139.7994, "lines": ["joban", "tx"], "jr24": 17086, "jr19": 17201, "tx24": 6659, "tx19": 5917, "b24": 23745, "b19": 23118, "p24": 47490, "g": 2.7}, {"n": "馬橋", "pref": "千葉県", "la": 35.811682, "lo": 139.917305, "lines": ["joban"], "jr24": 23552, "jr19": 25675, "tx24": null, "tx19": null, "b24": 23552, "b19": 25675, "p24": 47104, "g": -8.3}, {"n": "新御徒町", "pref": "東京都", "la": 35.707045, "lo": 139.781958, "lines": ["tx"], "jr24": null, "jr19": null, "tx24": 23431, "tx19": 22592, "b24": 23431, "b19": 22592, "p24": 46862, "g": 3.7}, {"n": "日野", "pref": "東京都", "la": 35.679244, "lo": 139.39393, "lines": ["chuo"], "jr24": 22929, "jr19": 26916, "tx24": null, "tx19": null, "b24": 22929, "b19": 26916, "p24": 45858, "g": -14.8}, {"n": "北戸田", "pref": "埼玉県", "la": 35.826883, "lo": 139.661201, "lines": ["saikyo"], "jr24": 22185, "jr19": 22196, "tx24": null, "tx19": null, "b24": 22185, "b19": 22196, "p24": 44370, "g": -0.0}, {"n": "下総中山", "pref": "千葉県", "la": 35.714276, "lo": 139.943092, "lines": ["sobu"], "jr24": 22149, "jr19": 24181, "tx24": null, "tx19": null, "b24": 22149, "b19": 24181, "p24": 44298, "g": -8.4}, {"n": "浮間舟渡", "pref": "東京都", "la": 35.791209, "lo": 139.691341, "lines": ["saikyo"], "jr24": 21719, "jr19": 21892, "tx24": null, "tx19": null, "b24": 21719, "b19": 21892, "p24": 43438, "g": -0.8}, {"n": "北小金", "pref": "千葉県", "la": 35.833436, "lo": 139.931303, "lines": ["joban"], "jr24": 21716, "jr19": 24335, "tx24": null, "tx19": null, "b24": 21716, "b19": 24335, "p24": 43432, "g": -10.8}, {"n": "戸田", "pref": "埼玉県", "la": 35.817665, "lo": 139.669548, "lines": ["saikyo"], "jr24": 21037, "jr19": 21355, "tx24": null, "tx19": null, "b24": 21037, "b19": 21355, "p24": 42074, "g": -1.5}, {"n": "新検見川", "pref": "千葉県", "la": 35.65169, "lo": 140.073025, "lines": ["sobu"], "jr24": 20747, "jr19": 22703, "tx24": null, "tx19": null, "b24": 20747, "b19": 22703, "p24": 41494, "g": -8.6}, {"n": "西千葉", "pref": "千葉県", "la": 35.622639, "lo": 140.103337, "lines": ["sobu"], "jr24": 20421, "jr19": 22000, "tx24": null, "tx19": null, "b24": 20421, "b19": 22000, "p24": 40842, "g": -7.2}, {"n": "稲毛海岸", "pref": "千葉県", "la": 35.629501, "lo": 140.074034, "lines": ["keiyo"], "jr24": 20360, "jr19": 21716, "tx24": null, "tx19": null, "b24": 20360, "b19": 21716, "p24": 40720, "g": -6.2}, {"n": "北松戸", "pref": "千葉県", "la": 35.800459, "lo": 139.911528, "lines": ["joban"], "jr24": 20073, "jr19": 21606, "tx24": null, "tx19": null, "b24": 20073, "b19": 21606, "p24": 40146, "g": -7.1}, {"n": "東船橋", "pref": "千葉県", "la": 35.699811, "lo": 140.00393, "lines": ["sobu"], "jr24": 20038, "jr19": 20542, "tx24": null, "tx19": null, "b24": 20038, "b19": 20542, "p24": 40076, "g": -2.5}, {"n": "柏の葉キャンパス", "pref": "千葉県", "la": 35.89308, "lo": 139.952454, "lines": ["tx"], "jr24": null, "jr19": null, "tx24": 19821, "tx19": 18017, "b24": 19821, "b19": 18017, "p24": 39642, "g": 10.0}, {"n": "南与野", "pref": "埼玉県", "la": 35.867456, "lo": 139.631117, "lines": ["saikyo"], "jr24": 19109, "jr19": 18917, "tx24": null, "tx19": null, "b24": 19109, "b19": 18917, "p24": 38218, "g": 1.0}, {"n": "蓮田", "pref": "埼玉県", "la": 35.981272, "lo": 139.653016, "lines": ["utsunomiya"], "jr24": 18934, "jr19": 20804, "tx24": null, "tx19": null, "b24": 18934, "b19": 20804, "p24": 37868, "g": -9.0}, {"n": "北赤羽", "pref": "東京都", "la": 35.787007, "lo": 139.70569, "lines": ["saikyo"], "jr24": 18491, "jr19": 19078, "tx24": null, "tx19": null, "b24": 18491, "b19": 19078, "p24": 36982, "g": -3.1}, {"n": "新日本橋", "pref": "東京都", "la": 35.689016, "lo": 139.774265, "lines": ["sobu"], "jr24": 18261, "jr19": 20100, "tx24": null, "tx19": null, "b24": 18261, "b19": 20100, "p24": 36522, "g": -9.1}, {"n": "つくば", "pref": "茨城県", "la": 36.0825, "lo": 140.110604, "lines": ["tx"], "jr24": null, "jr19": null, "tx24": 17980, "tx19": 18675, "b24": 17980, "b19": 18675, "p24": 35960, "g": -3.7}, {"n": "北柏", "pref": "千葉県", "la": 35.875623, "lo": 139.988035, "lines": ["joban"], "jr24": 17383, "jr19": 19140, "tx24": null, "tx19": null, "b24": 17383, "b19": 19140, "p24": 34766, "g": -9.2}, {"n": "千葉みなと", "pref": "千葉県", "la": 35.607389, "lo": 140.102478, "lines": ["keiyo"], "jr24": 17267, "jr19": 17199, "tx24": null, "tx19": null, "b24": 17267, "b19": 17199, "p24": 34534, "g": 0.4}, {"n": "六町", "pref": "東京都", "la": 35.784963, "lo": 139.821816, "lines": ["tx"], "jr24": null, "jr19": null, "tx24": 17241, "tx19": 15233, "b24": 17241, "b19": 15233, "p24": 34482, "g": 13.2}, {"n": "天王台", "pref": "千葉県", "la": 35.872558, "lo": 140.04121, "lines": ["joban"], "jr24": 16284, "jr19": 19271, "tx24": null, "tx19": null, "b24": 16284, "b19": 19271, "p24": 32568, "g": -15.5}, {"n": "幕張", "pref": "千葉県", "la": 35.6594, "lo": 140.057899, "lines": ["sobu"], "jr24": 15438, "jr19": 15944, "tx24": null, "tx19": null, "b24": 15438, "b19": 15944, "p24": 30876, "g": -3.2}, {"n": "三郷中央", "pref": "埼玉県", "la": 35.824514, "lo": 139.878344, "lines": ["tx"], "jr24": null, "jr19": null, "tx24": 15408, "tx19": 15408, "b24": 15408, "b19": 15408, "p24": 30816, "g": 0.0}, {"n": "潮見", "pref": "東京都", "la": 35.658702, "lo": 139.817341, "lines": ["keiyo"], "jr24": 15366, "jr19": 13798, "tx24": null, "tx19": null, "b24": 15366, "b19": 13798, "p24": 30732, "g": 11.4}, {"n": "土呂", "pref": "埼玉県", "la": 35.931997, "lo": 139.63214, "lines": ["utsunomiya"], "jr24": 15206, "jr19": 15861, "tx24": null, "tx19": null, "b24": 15206, "b19": 15861, "p24": 30412, "g": -4.1}, {"n": "検見川浜", "pref": "千葉県", "la": 35.637291, "lo": 140.058888, "lines": ["keiyo"], "jr24": 14951, "jr19": 15635, "tx24": null, "tx19": null, "b24": 14951, "b19": 15635, "p24": 29902, "g": -4.4}, {"n": "与野本町", "pref": "埼玉県", "la": 35.880968, "lo": 139.626075, "lines": ["saikyo"], "jr24": 14652, "jr19": 15556, "tx24": null, "tx19": null, "b24": 14652, "b19": 15556, "p24": 29304, "g": -5.8}, {"n": "葛西臨海公園", "pref": "東京都", "la": 35.644392, "lo": 139.861529, "lines": ["keiyo"], "jr24": 14511, "jr19": 13701, "tx24": null, "tx19": null, "b24": 14511, "b19": 13701, "p24": 29022, "g": 5.9}, {"n": "高輪ゲートウェイ", "pref": "東京都", "la": 35.635475, "lo": 139.740757, "lines": ["yamanote"], "jr24": 14209, "jr19": null, "tx24": null, "tx19": null, "b24": 14209, "b19": null, "p24": 28418, "g": null, "note": "2020年開業"}, {"n": "中浦和", "pref": "埼玉県", "la": 35.853769, "lo": 139.6375, "lines": ["saikyo"], "jr24": 12771, "jr19": 13537, "tx24": null, "tx19": null, "b24": 12771, "b19": 13537, "p24": 25542, "g": -5.7}, {"n": "綾瀬", "pref": "東京都", "la": 35.762222, "lo": 139.825019, "lines": ["joban"], "jr24": 12641, "jr19": 14265, "tx24": null, "tx19": null, "b24": 12641, "b19": 14265, "p24": 25282, "g": -11.4}, {"n": "浅草", "pref": "東京都", "la": 35.713817, "lo": 139.792389, "lines": ["tx"], "jr24": null, "jr19": null, "tx24": 12467, "tx19": 11642, "b24": 12467, "b19": 11642, "p24": 24934, "g": 7.1}, {"n": "三河島", "pref": "東京都", "la": 35.733383, "lo": 139.777131, "lines": ["joban"], "jr24": 12101, "jr19": 11461, "tx24": null, "tx19": null, "b24": 12101, "b19": 11461, "p24": 24202, "g": 5.6}, {"n": "白岡", "pref": "埼玉県", "la": 36.01774, "lo": 139.666826, "lines": ["utsunomiya"], "jr24": 11670, "jr19": 12854, "tx24": null, "tx19": null, "b24": 11670, "b19": 12854, "p24": 23340, "g": -9.2}, {"n": "新習志野", "pref": "千葉県", "la": 35.667342, "lo": 140.012825, "lines": ["keiyo"], "jr24": 11542, "jr19": 13295, "tx24": null, "tx19": null, "b24": 11542, "b19": 13295, "p24": 23084, "g": -13.2}, {"n": "北与野", "pref": "埼玉県", "la": 35.890678, "lo": 139.628521, "lines": ["saikyo"], "jr24": 11131, "jr19": 10489, "tx24": null, "tx19": null, "b24": 11131, "b19": 10489, "p24": 22262, "g": 6.1}, {"n": "尾久", "pref": "東京都", "la": 35.74683, "lo": 139.753846, "lines": ["utsunomiya"], "jr24": 10429, "jr19": 10360, "tx24": null, "tx19": null, "b24": 10429, "b19": 10360, "p24": 20858, "g": 0.7}, {"n": "柏たなか", "pref": "千葉県", "la": 35.9109, "lo": 139.957533, "lines": ["tx"], "jr24": null, "jr19": null, "tx24": 8049, "tx19": 6850, "b24": 8049, "b19": 6850, "p24": 16098, "g": 17.5}, {"n": "市川塩浜", "pref": "千葉県", "la": 35.666554, "lo": 139.923684, "lines": ["keiyo"], "jr24": 7882, "jr19": 8086, "tx24": null, "tx19": null, "b24": 7882, "b19": 8086, "p24": 15764, "g": -2.5}, {"n": "研究学園", "pref": "茨城県", "la": 36.0821, "lo": 140.082256, "lines": ["tx"], "jr24": null, "jr19": null, "tx24": 7877, "tx19": 7350, "b24": 7877, "b19": 7350, "p24": 15754, "g": 7.2}, {"n": "幕張豊砂", "pref": "千葉県", "la": 35.658245, "lo": 140.026845, "lines": ["keiyo"], "jr24": 7359, "jr19": null, "tx24": null, "tx19": null, "b24": 7359, "b19": null, "p24": 14718, "g": null, "note": "2023年開業"}, {"n": "青井", "pref": "東京都", "la": 35.771782, "lo": 139.82038, "lines": ["tx"], "jr24": null, "jr19": null, "tx24": 6723, "tx19": 6683, "b24": 6723, "b19": 6683, "p24": 13446, "g": 0.6}, {"n": "新白岡", "pref": "埼玉県", "la": 36.038732, "lo": 139.67208, "lines": ["utsunomiya"], "jr24": 6367, "jr19": 6954, "tx24": null, "tx19": null, "b24": 6367, "b19": 6954, "p24": 12734, "g": -8.4}, {"n": "みらい平", "pref": "茨城県", "la": 35.99514, "lo": 140.038555, "lines": ["tx"], "jr24": null, "jr19": null, "tx24": 5944, "tx19": 5467, "b24": 5944, "b19": 5467, "p24": 11888, "g": 8.7}, {"n": "流山セントラルパーク", "pref": "千葉県", "la": 35.854552, "lo": 139.915223, "lines": ["tx"], "jr24": null, "jr19": null, "tx24": 5651, "tx19": 5258, "b24": 5651, "b19": 5258, "p24": 11302, "g": 7.5}, {"n": "みどりの", "pref": "茨城県", "la": 36.03025, "lo": 140.056276, "lines": ["tx"], "jr24": null, "jr19": null, "tx24": 5537, "tx19": 4850, "b24": 5537, "b19": 4850, "p24": 11074, "g": 14.2}, {"n": "越中島", "pref": "東京都", "la": 35.667946, "lo": 139.792713, "lines": ["keiyo"], "jr24": 5440, "jr19": 5910, "tx24": null, "tx19": null, "b24": 5440, "b19": 5910, "p24": 10880, "g": -8.0}, {"n": "二俣新町", "pref": "千葉県", "la": 35.691273, "lo": 139.959525, "lines": ["keiyo"], "jr24": 5052, "jr19": 4983, "tx24": null, "tx19": null, "b24": 5052, "b19": 4983, "p24": 10104, "g": 1.4}, {"n": "万博記念公園", "pref": "茨城県", "la": 36.058433, "lo": 140.059328, "lines": ["tx"], "jr24": null, "jr19": null, "tx24": 3575, "tx19": 3317, "b24": 3575, "b19": 3317, "p24": 7150, "g": 7.8}]}</script>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/deck.gl@9.1.15/dist.min.js"></script>
+<script>
+(function(){
+  if(typeof maplibregl==='undefined' || typeof deck==='undefined'){
+    document.getElementById('loading').innerHTML =
+      '<div style="text-align:center;line-height:2;letter-spacing:.05em">'+
+      '地図ライブラリ（maplibre-gl / deck.gl）を読み込めませんでした。<br>'+
+      'ネットワークかCDNの状態を確認してください。</div>';
+    return;
+  }
+  const DATA = JSON.parse(document.getElementById('payload').textContent);
+  const ST = DATA.stations, LINES = DATA.lines;
+  const byName = Object.fromEntries(ST.map(s=>[s.n,s]));
+  const LMAP = Object.fromEntries(LINES.map(l=>[l.id,l]));
+  const MAXP = Math.max(...ST.map(s=>s.p24));
+  const H_MAX = 12000;                     // 最大の柱の高さ(m)
+  ST.forEach((s,i)=>{ s.rank = i+1; });
+
+  const state = {
+    color:'growth', scale:'linear', hmul:1, labN:25,
+    on:new Set(LINES.map(l=>l.id)), sel:null, sort:'p24'
+  };
+
+  /* ---------- 配色 ---------- */
+  const hex = h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+  const DOWN=hex('#c0394b'), FLAT=hex('#5c6b78'), UP=hex('#17b8a6'), NA=[74,86,96];
+  const mix=(a,b,t)=>a.map((v,i)=>Math.round(v+(b[i]-v)*t));
+  function ramp(t){                        // t: -1..1
+    t=Math.max(-1,Math.min(1,t));
+    return t<0 ? mix(FLAT,DOWN,-t) : mix(FLAT,UP,t);
+  }
+  function colorOf(s){
+    if(state.color==='line') return hex(LMAP[s.lines[0]].color);
+    if(s.g===null) return NA;
+    const v = state.color==='rel' ? (s.g-meanG)/15 : s.g/25;
+    return ramp(v);
+  }
+  let meanG = 0;
+
+  /* ---------- 柱の太さ（ズームに追従） ---------- */
+  function radiusM(){
+    const mpp = 127180/Math.pow(2, map.getZoom());   // 東京の緯度でのm/px
+    return Math.max(260, 4.2*mpp);
+  }
+
+  /* ---------- 高さ ---------- */
+  function elevOf(s){
+    const t = state.scale==='sqrt' ? Math.sqrt(s.p24/MAXP) : s.p24/MAXP;
+    return t*H_MAX*state.hmul;
+  }
+
+  const visible = ()=>ST.filter(s=>s.lines.some(l=>state.on.has(l)));
+  const fmt = n=>n.toLocaleString('ja-JP');
+  const pct = g=>g===null?'—':(g>0?'+':'')+g.toFixed(1)+'%';
+
+  /* ---------- 地図 ---------- */
+  const reduce = typeof matchMedia==='function' && matchMedia('(prefers-reduced-motion:reduce)').matches;
+  const map = new maplibregl.Map({
+    container:'map',
+    style:'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+    center:[139.74,35.73], zoom:8.55, pitch:55, bearing:-18,
+    maxPitch:75, attributionControl:{compact:true}
+  });
+  let raf=0;
+  function schedule(){ if(raf) return; raf=requestAnimationFrame(()=>{raf=0;render();}); }
+
+  map.addControl(new maplibregl.NavigationControl({showCompass:true,visualizePitch:true}),'bottom-right');
+
+  const overlay = new deck.MapboxOverlay({interleaved:false, layers:[], getTooltip:tooltip});
+  map.on('load', ()=>{
+    map.addControl(overlay);
+    document.getElementById('loading').style.display='none';
+    render();
+    map.on('zoom', schedule);
+  });
+  setTimeout(()=>{ const l=document.getElementById('loading'); if(l) l.style.display='none'; }, 8000);
+
+  function tooltip({object}){
+    if(!object || !object.n) return null;
+    const s=object, c=colorOf(s);
+    return {html:`<b>${s.n}</b> <span style="font-size:10px;color:#8b9dab">${s.pref}</span><br>
+      <span class="g">${fmt(s.p24)}</span> 人/日 ・
+      <span class="g" style="color:rgb(${c.join(',')})">${pct(s.g)}</span>`,
+      style:{background:'transparent',border:0,padding:0,boxShadow:'none'},
+      className:'tip'};
+  }
+
+  function paths(){
+    const out=[];
+    LINES.forEach(l=>{
+      if(!state.on.has(l.id)) return;
+      l.paths.forEach(p=>{
+        const c=p.map(n=>byName[n]).filter(Boolean).map(s=>[s.lo,s.la,0]);
+        if(c.length>1) out.push({path:c, color:hex(l.color)});
+      });
+    });
+    return out;
+  }
+
+  function render(){
+    const vis = visible();
+    const withG = vis.filter(s=>s.g!==null);
+    meanG = withG.length ? withG.reduce((a,s)=>a+s.g,0)/withG.length : 0;
+    const labels = [...vis].sort((a,b)=>b.p24-a.p24).slice(0, state.labN);
+
+    overlay.setProps({layers:[
+      new deck.PathLayer({
+        id:'rails', data:paths(), widthUnits:'pixels', getWidth:1.6,
+        widthMinPixels:1, getPath:d=>d.path,
+        getColor:d=>[...d.color,110]
+      }),
+      new deck.ColumnLayer({
+        id:'cols', data:vis, diskResolution:16, radius:radiusM(), extruded:true,
+        pickable:true, flatShading:true, radiusUnits:'meters',
+        getPosition:d=>[d.lo,d.la], getElevation:elevOf,
+        getFillColor:d=>[...colorOf(d), state.sel && state.sel!==d.n ? 165 : 232],
+        getLineColor:[255,255,255,40], stroked:false,
+        material:{ambient:.62,diffuse:.55,shininess:24,specularColor:[70,80,90]},
+        updateTriggers:{getFillColor:[state.color,state.sel,meanG],getElevation:[state.scale,state.hmul]},
+        onClick:({object})=>select(object?object.n:null)
+      }),
+      new deck.TextLayer({
+        id:'labels', data:labels, characterSet:CHARSET, fontFamily:'"Zen Kaku Gothic New", sans-serif',
+        fontWeight:700, getPosition:d=>[d.lo,d.la,elevOf(d)+260],
+        getText:d=>d.n, getSize:12, sizeUnits:'pixels', billboard:true,
+        getColor:[240,246,250,235], outlineWidth:2, outlineColor:[11,16,21,220],
+        fontSettings:{sdf:true,fontSize:44,buffer:4}, getTextAnchor:'middle', getAlignmentBaseline:'bottom',
+        updateTriggers:{getPosition:[state.scale,state.hmul]}
+      })
+    ]});
+    drawLegend(); drawRank();
+  }
+  const CHARSET = new Set([...ST.map(s=>s.n).join(''), ...'0123456789%+-.,'].flat());
+
+  /* ---------- legend ---------- */
+  function drawLegend(){
+    const lab=document.getElementById('legLab'), ramps=document.getElementById('ramp'),
+          tk=document.getElementById('rampTicks');
+    if(state.color==='line'){
+      lab.textContent='色：路線';
+      ramps.style.background='linear-gradient(90deg,'+LINES.map(l=>l.color).join(',')+')';
+      tk.innerHTML='<span>山手</span><span>埼京</span><span>東海道</span>';
+    }else{
+      const r=t=>`rgb(${ramp(t).join(',')})`;
+      ramps.style.background=`linear-gradient(90deg,${r(-1)},${r(-.5)},${r(0)},${r(.5)},${r(1)})`;
+      if(state.color==='rel'){
+        lab.textContent='色：伸び率の平均比（平均 '+pct(+meanG.toFixed(1))+'）';
+        tk.innerHTML='<span>-15pt</span><span>平均</span><span>+15pt</span>';
+      }else{
+        lab.textContent='色：5年伸び率（2019→2024年度）';
+        tk.innerHTML='<span>-25%</span><span>0%</span><span>+25%</span>';
+      }
+    }
+    const refs=[500000,200000,50000];
+    document.getElementById('hbar').innerHTML =
+      refs.map(v=>{
+        const t=state.scale==='sqrt'?Math.sqrt(v/MAXP):v/MAXP;
+        return `<div style="text-align:center"><i style="height:${Math.max(3,t*46*state.hmul)}px"></i>
+                <span style="font-size:9px;color:var(--fg-faint)">${v/10000}万</span></div>`;
+      }).join('') + '<span style="font-size:9.5px;padding-left:4px">高さ＝乗降人員/日</span>';
+  }
+
+  /* ---------- ranking ---------- */
+  function drawRank(){
+    const vis=visible();
+    let arr=[...vis];
+    if(state.sort==='p24') arr.sort((a,b)=>b.p24-a.p24);
+    if(state.sort==='g') arr.sort((a,b)=>(b.g??-99)-(a.g??-99));
+    if(state.sort==='gAsc') arr.sort((a,b)=>(a.g??99)-(b.g??99));
+    arr=arr.slice(0,40);
+    const mx = state.sort==='p24' ? Math.max(...arr.map(s=>s.p24)) : 1;
+    document.getElementById('rlist').innerHTML = arr.map((s,i)=>{
+      const c=colorOf(s), val = state.sort==='p24' ? fmt(s.p24) : pct(s.g);
+      const w = state.sort==='p24' ? s.p24/mx*100 : Math.min(100,Math.abs(s.g??0)/25*100);
+      return `<li><button data-n="${s.n}" class="${state.sel===s.n?'on':''}">
+        <span class="no mono">${i+1}</span>
+        <span class="nm">${s.n}<small>${LMAP[s.lines[0]].short}</small></span>
+        <span class="vl mono" style="color:rgb(${c.join(',')})">${val}</span></button>
+        <div class="bar"><span style="width:${w}%;background:rgb(${c.join(',')})"></span></div></li>`;
+    }).join('');
+    document.querySelectorAll('#rlist button').forEach(b=>{
+      b.onclick=()=>{ select(b.dataset.n); fly(byName[b.dataset.n]); };
+    });
+  }
+
+  function fly(s){
+    const opt={center:[s.lo,s.la], zoom:Math.max(map.getZoom(),11), pitch:60, duration:reduce?0:1200};
+    reduce?map.jumpTo(opt):map.flyTo(opt);
+  }
+
+  /* ---------- detail ---------- */
+  function select(n){
+    state.sel = n;
+    const d=document.getElementById('detail');
+    if(!n){ d.classList.remove('show'); render(); return; }
+    const s=byName[n];
+    document.getElementById('dName').textContent=s.n;
+    document.getElementById('dPref').textContent=s.pref;
+    document.getElementById('dLines').innerHTML=s.lines.map(l=>
+      `<span style="color:${LMAP[l].color}">${LMAP[l].short}</span>`).join('');
+    document.getElementById('dP').innerHTML=fmt(s.p24)+'<small>人</small>';
+    document.getElementById('dB').innerHTML=fmt(s.b24)+'<small>人</small>';
+    const g=document.getElementById('dG');
+    g.textContent=pct(s.g); g.style.color=`rgb(${colorOf(s).join(',')})`;
+    document.getElementById('dR').innerHTML=s.rank+'<small>/'+ST.length+'位</small>';
+    const parts=[];
+    if(s.jr24) parts.push(`JR ${fmt(s.jr24)}`);
+    if(s.tx24) parts.push(`TX ${fmt(s.tx24)}`);
+    document.getElementById('dNote').textContent =
+      `乗車人員の内訳（2024年度）：${parts.join(' ／ ')}` +
+      (s.b19?`　2019年度：${fmt(s.b19)}人`:'') + (s.note?`　※${s.note}`:'') +
+      '　他社線の利用は含まない。';
+    d.classList.add('show');
+    render();
+  }
+  document.getElementById('close').onclick=()=>select(null);
+
+  /* ---------- controls ---------- */
+  document.getElementById('colorMode').onchange=e=>{state.color=e.target.value;render();};
+  document.querySelectorAll('[data-scale]').forEach(b=>b.onclick=()=>{
+    state.scale=b.dataset.scale;
+    document.querySelectorAll('[data-scale]').forEach(x=>x.setAttribute('aria-pressed',x===b));
+    render();
+  });
+  const hm=document.getElementById('hmul');
+  hm.oninput=()=>{state.hmul=+hm.value;document.getElementById('hmulV').textContent=state.hmul.toFixed(1);render();};
+  const ln=document.getElementById('labN');
+  ln.oninput=()=>{state.labN=+ln.value;document.getElementById('labNV').textContent=state.labN;render();};
+  document.getElementById('sortBy').onchange=e=>{state.sort=e.target.value;drawRank();};
+  document.getElementById('toggle').onclick=e=>{
+    const p=document.getElementById('panel'), min=p.classList.toggle('min');
+    e.target.textContent=min?'開く':'閉じる'; e.target.setAttribute('aria-expanded',!min);
+  };
+  document.getElementById('chips').innerHTML=LINES.map(l=>
+    `<button class="chip" data-l="${l.id}" aria-pressed="true" style="color:${l.color}">
+       <i></i><span style="color:var(--fg)">${l.name}</span></button>`).join('');
+  document.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{
+    const id=b.dataset.l, on=state.on.has(id);
+    on?state.on.delete(id):state.on.add(id);
+    b.setAttribute('aria-pressed',!on);
+    if(state.sel && !byName[state.sel].lines.some(l=>state.on.has(l))) select(null); else render();
+  });
+  document.getElementById('csv').onclick=()=>{
+    const head=['駅名','都道府県','路線','緯度','経度','乗降人員2024','乗車人員2024','乗車人員2019','5年伸び率%'];
+    const rows=ST.map(s=>[s.n,s.pref,s.lines.map(l=>LMAP[l].name).join('/'),s.la,s.lo,
+      s.p24,s.b24,s.b19??'',s.g??'']);
+    const csv='\ufeff'+[head,...rows].map(r=>r.join(',')).join('\n');
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+    a.download='station_power.csv'; a.click();
+  };
+  addEventListener('keydown',e=>{ if(e.key==='Escape') select(null); });
+})();
+</script>
+</body>
+</html>
