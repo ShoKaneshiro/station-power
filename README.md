@@ -43,18 +43,9 @@
 5. 幕張豊砂（2023年開業）と高輪ゲートウェイ（2020年開業）は2019年度実績がないため灰色（比較不可）。
 6. TXの2019年度は100人単位の速報値ベース。
 
-## GitHub Pages で公開する
+## GitHub Pages 
 
-```bash
-git init
-git add index.html README.md data.json
-git commit -m "初期版"
-git branch -M main
-git remote add origin git@github.com:<user>/<repo>.git
-git push -u origin main
-```
-
-その後 Settings → Pages → Source を `main` / `/ (root)` にすれば `https://<user>.github.io/<repo>/` で開く。ライブラリ（maplibre-gl・deck.gl）と背景地図はCDN参照なので、追加のビルドや鍵は不要。
+https://shokaneshiro.github.io/station-power/
 
 ## データを更新する
 
